@@ -27,40 +27,14 @@ client
 
     const userStates = new Map();
 
-    bot.start((ctx) => {
-      ctx.reply(
-        "Привет! Я ваш бот по страхованию автомобилей. Готов помочь вам оформить полис за считанные минуты.",
-        {
-          reply_markup: {
-            keyboard: [[{ text: "Старт" }]],
-            resize_keyboard: true,
-            one_time_keyboard: true,
-          },
-        }
-      );
-    });
-
-    bot.hears("Старт", (ctx) => {
-      userStates.delete(ctx.from.id);
-      ctx.reply("Выберите действие:", {
-        reply_markup: {
-          keyboard: [
-            [{ text: "Мой гараж 🚘" }, { text: "Сделать полис 📃" }],
-            [{ text: "Реферальная программа 🔗" }, { text: "Консультант 🧑‍💼" }],
-            [{ text: "О нас ℹ️" }],
-          ],
-          resize_keyboard: true,
-        },
-      });
-    });
-
-    bot.hears("Мой гараж 🚘", async (ctx) => {
+    async function myGarage(ctx) {
       const userId = ctx.from.id;
       const user = await usersCollection.findOne({ id: userId });
 
       if (user) {
         ctx.reply(
-          `Имя пользователя: ${user.username}\nID пользователя: ${user.id}\nБаланс: ${user.balance} PLN\nПриглашенные: ${user.invited_count}`,
+          `Имя пользователя: ${user.username}\nID пользователя: ${user.id}\nБаланс: ${user.balance} PLN
+          `,
           {
             reply_markup: {
               inline_keyboard: [
@@ -97,7 +71,6 @@ client
           id: userId,
           username: ctx.from.username,
           balance: 0,
-          invited_count: 0,
         });
         ctx.reply("Ваш гараж пуст. Добавьте автомобиль, чтобы продолжить.", {
           reply_markup: {
@@ -107,9 +80,9 @@ client
           },
         });
       }
-    });
+    }
 
-    bot.hears("Сделать полис 📃", async (ctx) => {
+    async function createPolis(ctx) {
       const userId = ctx.from.id;
       const cars = await carsCollection.find({ user_id: userId }).toArray();
 
@@ -134,8 +107,52 @@ client
           },
         });
       }
+    }
+
+    function support(ctx) {
+      ctx.reply("Напишите в нашу службу поддержки @vlcontact");
+    }
+
+    function aboutUs(ctx) {
+      ctx.reply(
+        "Мы - самый удобный бот для покупки страхового полиса для вашего любимого автомобиля"
+      );
+    }
+
+    bot.start((ctx) => {
+      userStates.delete(ctx.from.id);
+      ctx.reply(
+        "Привет! Я ваш бот по страхованию автомобилей. Готов помочь вам оформить полис за считанные минуты. \nВыберите действие:",
+        {
+          reply_markup: {
+            keyboard: [
+              [{ text: "Мой гараж 🚘" }, { text: "Сделать полис 📃" }],
+              [{ text: "Консультант 🧑‍💼" }],
+              [{ text: "О нас ℹ️" }],
+            ],
+            resize_keyboard: true,
+          },
+        }
+      );
     });
 
+    bot.hears("Мой гараж 🚘", (ctx) => {
+      myGarage(ctx);
+    });
+
+    bot.hears("Сделать полис 📃", async (ctx) => {
+      createPolis(ctx);
+    });
+
+    bot.hears("Консультант 🧑‍💼", async (ctx) => {
+      support(ctx);
+    });
+
+    bot.hears("О нас ℹ️", async (ctx) => {
+      aboutUs(ctx);
+    });
+
+    ////CALLBACK_QUERY
     bot.on("callback_query", async (ctx) => {
       const data = ctx.callbackQuery.data;
       const userId = ctx.from.id;
@@ -220,10 +237,19 @@ client
           _id: ObjectId.createFromHexString(carId),
         });
         ctx.reply("Автомобиль удален из вашего гаража.");
+      } else if (data === "my_garage") {
+        myGarage(ctx);
+      } else if (data === "create_polis") {
+        createPolis(ctx);
+      } else if (data === "support") {
+        support(ctx);
+      } else if (data === "about_us") {
+        aboutUs(ctx);
       }
     });
 
     bot.on("text", async (ctx) => {
+      console.log(ctx.text);
       const userId = ctx.from.id;
       const state = userStates.get(userId);
 
@@ -256,6 +282,37 @@ client
           ctx.reply(`Ваш баланс пополнен на ${amount} PLN.`);
           userStates.delete(userId);
         }
+      } else {
+        ctx.reply("Я вас не понимаю, пожалуйста выберите действие: ", {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: "Мой гараж 🚘",
+                  callback_data: "my_garage",
+                },
+              ],
+              [
+                {
+                  text: "Сделать полис 📃",
+                  callback_data: "create_polis",
+                },
+              ],
+              [
+                {
+                  text: "Консультант 🧑‍💼",
+                  callback_data: "support",
+                },
+              ],
+              [
+                {
+                  text: "О нас ℹ️",
+                  callback_data: "about_us",
+                },
+              ],
+            ],
+          },
+        });
       }
     });
 

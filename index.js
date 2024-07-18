@@ -1,5 +1,10 @@
+require("dotenv").config();
+
 const { Telegraf } = require("telegraf");
 const { MongoClient, ObjectId } = require("mongodb");
+
+const TOKEN = process.env.TOKEN;
+const url = process.env.MONGODB_URL;
 
 const bot = new Telegraf(TOKEN);
 

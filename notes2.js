@@ -1,7 +1,3 @@
-const TOKEN = "7344846744:AAG4MNEmfT2Sim09FS-mLf0UDC_m0Cw6-zY";
-const url =
-  "mongodb+srv://vladislavletichevsky:52669007mongoDB@clusterpolisbot.nhyqzrq.mongodb.net/?retryWrites=true&w=majority&appName=ClusterPolisBot";
-
 const { Telegraf } = require("telegraf");
 const { MongoClient, ObjectId } = require("mongodb");
 

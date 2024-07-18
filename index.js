@@ -17,6 +17,8 @@ const priceList = [
   { duration: "12 месяцев", cost: 1560, callback_data: "buy_policy_12_months" },
 ];
 
+let canAnswer = false;
+
 client
   .connect()
   .then(() => {
@@ -134,6 +136,7 @@ client
           },
         }
       );
+      canAnswer = true;
     });
 
     bot.hears("Мой гараж 🚘", (ctx) => {
@@ -248,6 +251,7 @@ client
       }
     });
 
+    ////LISTENING MESSAGES
     bot.on("text", async (ctx) => {
       console.log(ctx.text);
       const userId = ctx.from.id;
@@ -282,8 +286,8 @@ client
           ctx.reply(`Ваш баланс пополнен на ${amount} PLN.`);
           userStates.delete(userId);
         }
-      } else {
-        ctx.reply("Я вас не понимаю, пожалуйста выберите действие: ", {
+      } else if (ctx.text.trim() && canAnswer) {
+        ctx.reply("Пожалуйста выберите одно из действий: ", {
           reply_markup: {
             inline_keyboard: [
               [

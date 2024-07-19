@@ -140,7 +140,7 @@ client
       canAnswer = true;
     }
 
-    bot.start((ctx) => {
+    function start(ctx) {
       userStates.delete(ctx.from.id);
       ctx.reply(
         "Привет! Я ваш бот по страхованию автомобилей. Готов помочь вам оформить полис за считанные минуты. \nВыберите действие:",
@@ -156,22 +156,31 @@ client
         }
       );
       canAnswer = true;
+    }
+
+    bot.start((ctx) => {
+      start(ctx);
+      console.log(ctx.message.text);
     });
 
     bot.hears("Мой гараж 🚘", (ctx) => {
       myGarage(ctx);
+      console.log(ctx.message.text);
     });
 
     bot.hears("Сделать полис 📃", async (ctx) => {
       createPolis(ctx);
+      console.log(ctx.message.text);
     });
 
     bot.hears("Консультант 🧑‍💼", async (ctx) => {
       support(ctx);
+      console.log(ctx.message.text);
     });
 
     bot.hears("О нас ℹ️", async (ctx) => {
       aboutUs(ctx);
+      console.log(ctx.message.text);
     });
 
     ////CALLBACK_QUERY
@@ -227,7 +236,7 @@ client
           const startDate = getStartDate();
           const expirationDate = getExpirationDate(
             startDate,
-            parseInt(duration.split("_")[0])
+            parseInt(duration.split(" ")[0])
           );
 
           await carsCollection.updateOne(
@@ -243,18 +252,16 @@ client
             }
           );
 
+          const car = await carsCollection.findOne({
+            _id: ObjectId.createFromHexString(carId),
+          });
+
           ctx.reply("Запрос принят, ожидайте свой полис.");
           ctx.reply(
-            `Admin \nПользователь ${userId} заказал полис. \nАвтомобиль: ${carId} \nСрок полиса в месяцах: ${duration.slice(
-              0,
-              1
-            )}`
+            `Admin \nПользователь @${user.username} заказал полис. \nАвтомобиль: ${car.car_info} \ncar ID: ${carId} \nСрок полиса в месяцах: ${duration}`
           );
           console.log(
-            `Пользователь ${userId} заказал полис. \n Автомобиль: ${carId} \n Срок полиса в месяцах: ${duration.slice(
-              0,
-              1
-            )}`
+            `Пользователь ${user.username} ID:${userId} заказал полис. \nАвтомобиль: ${car.car_info} \ncar ID: ${carId} \nСрок полиса в месяцах: ${duration}`
           );
         } else {
           ctx.reply(
@@ -270,10 +277,13 @@ client
         }
       } else if (data.startsWith("delete_car_")) {
         const carId = data.split("_")[2];
+        const car = await carsCollection.findOne({
+          _id: ObjectId.createFromHexString(carId),
+        });
         await carsCollection.deleteOne({
           _id: ObjectId.createFromHexString(carId),
         });
-        ctx.reply("Автомобиль удален из вашего гаража.");
+        ctx.reply(`Автомобиль ${car.car_info} удален из вашего гаража.`);
       } else if (data === "my_garage") {
         myGarage(ctx);
       } else if (data === "create_polis") {
@@ -308,6 +318,7 @@ client
     });
 
     bot.on("text", async (ctx) => {
+      console.log(ctx.message.text);
       const userId = ctx.from.id;
       const state = userStates.get(userId);
 
@@ -318,7 +329,7 @@ client
           car_info: carInfo,
           policies: [],
         });
-        ctx.reply("Автомобиль добавлен в ваш гараж.");
+        ctx.reply(`Автомобиль ${carInfo} добавлен в ваш гараж.`);
         userStates.delete(userId);
       } else if (state === "waiting_for_balance_amount") {
         const amount = parseInt(ctx.message.text, 10);
@@ -343,6 +354,8 @@ client
             ],
           },
         });
+      } else if (!canAnswer && ctx.message != "/start") {
+        start(ctx);
       }
     });
 

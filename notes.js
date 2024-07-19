@@ -1,5 +1,4 @@
 require("dotenv").config();
-
 const { Telegraf } = require("telegraf");
 const { MongoClient, ObjectId } = require("mongodb");
 
@@ -7,7 +6,6 @@ const TOKEN = process.env.TOKEN;
 const url = process.env.MONGODB_URL;
 
 const bot = new Telegraf(TOKEN);
-
 const client = new MongoClient(url);
 
 const priceList = [
@@ -23,11 +21,29 @@ client
   .connect()
   .then(() => {
     console.log("Connected to MongoDB");
+
     const db = client.db("car_insurance");
     const usersCollection = db.collection("users");
     const carsCollection = db.collection("cars");
 
     const userStates = new Map();
+
+    function formatDate(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${day}.${month}.${year}`;
+    }
+
+    function getStartDate() {
+      return new Date();
+    }
+
+    function getExpirationDate(startDate, monthsDuration) {
+      const expirationDate = new Date(startDate);
+      expirationDate.setMonth(expirationDate.getMonth() + monthsDuration);
+      return expirationDate;
+    }
 
     async function myGarage(ctx) {
       const userId = ctx.from.id;
@@ -35,8 +51,7 @@ client
 
       if (user) {
         ctx.reply(
-          `Имя пользователя: ${user.username}\nID пользователя: ${user.id}\nБаланс: ${user.balance} PLN
-          `,
+          `Имя пользователя: ${user.username}\nID пользователя: ${user.id}\nБаланс: ${user.balance} PLN`,
           {
             reply_markup: {
               inline_keyboard: [
@@ -82,6 +97,7 @@ client
           },
         });
       }
+      canAnswer = true;
     }
 
     async function createPolis(ctx) {
@@ -109,16 +125,19 @@ client
           },
         });
       }
+      canAnswer = true;
     }
 
     function support(ctx) {
       ctx.reply("Напишите в нашу службу поддержки @vlcontact");
+      canAnswer = true;
     }
 
     function aboutUs(ctx) {
       ctx.reply(
         "Мы - самый удобный бот для покупки страхового полиса для вашего любимого автомобиля"
       );
+      canAnswer = true;
     }
 
     bot.start((ctx) => {
@@ -205,8 +224,24 @@ client
             { $inc: { balance: -cost } }
           );
 
-          // Fetch the user data again to log the updated balance
-          const updatedUser = await usersCollection.findOne({ id: userId });
+          const startDate = getStartDate();
+          const expirationDate = getExpirationDate(
+            startDate,
+            parseInt(duration.split("_")[0])
+          );
+
+          await carsCollection.updateOne(
+            { _id: ObjectId.createFromHexString(carId) },
+            {
+              $push: {
+                policies: {
+                  isActive: true,
+                  date_of_start: startDate,
+                  date_of_expiration: expirationDate,
+                },
+              },
+            }
+          );
 
           ctx.reply("Запрос принят, ожидайте свой полис.");
           ctx.reply(
@@ -215,7 +250,6 @@ client
               1
             )}`
           );
-          // Заглушка для передачи данных в админку
           console.log(
             `Пользователь ${userId} заказал полис. \n Автомобиль: ${carId} \n Срок полиса в месяцах: ${duration.slice(
               0,
@@ -248,12 +282,32 @@ client
         support(ctx);
       } else if (data === "about_us") {
         aboutUs(ctx);
+      } else if (data.startsWith("view_policies_")) {
+        const carId = data.split("_")[2];
+        const car = await carsCollection.findOne({
+          _id: ObjectId.createFromHexString(carId),
+        });
+
+        if (car && car.policies && car.policies.length > 0) {
+          car.policies.forEach((policy) => {
+            const status = policy.isActive ? "Активный" : "Неактивный";
+            const startDate = formatDate(new Date(policy.date_of_start));
+            const expirationDate = formatDate(
+              new Date(policy.date_of_expiration)
+            );
+            ctx.reply(
+              `Статус: ${status}\nДата начала действия: ${startDate}\nДата истечения срока действия: ${expirationDate}`
+            );
+          });
+        } else {
+          ctx.reply("Полисы для данного автомобиля отсутствуют.");
+        }
       }
+
+      canAnswer = true;
     });
 
-    ////LISTENING MESSAGES
     bot.on("text", async (ctx) => {
-      console.log(ctx.text);
       const userId = ctx.from.id;
       const state = userStates.get(userId);
 
@@ -262,6 +316,7 @@ client
         await carsCollection.insertOne({
           user_id: userId,
           car_info: carInfo,
+          policies: [],
         });
         ctx.reply("Автомобиль добавлен в ваш гараж.");
         userStates.delete(userId);
@@ -274,46 +329,17 @@ client
             { id: userId },
             { $inc: { balance: amount } }
           );
-
-          // Fetch the updated user data to ensure the balance is updated
-          const updatedUser = await usersCollection.findOne({ id: userId });
-
-          // Log the balance update
-          console.log(
-            `User ${userId} balance topped up by ${amount} PLN. New balance: ${updatedUser.balance}`
-          );
-
           ctx.reply(`Ваш баланс пополнен на ${amount} PLN.`);
           userStates.delete(userId);
         }
       } else if (ctx.text.trim() && canAnswer) {
-        ctx.reply("Пожалуйста выберите одно из действий: ", {
+        ctx.reply("Пожалуйста выберите действие из списка:", {
           reply_markup: {
             inline_keyboard: [
-              [
-                {
-                  text: "Мой гараж 🚘",
-                  callback_data: "my_garage",
-                },
-              ],
-              [
-                {
-                  text: "Сделать полис 📃",
-                  callback_data: "create_polis",
-                },
-              ],
-              [
-                {
-                  text: "Консультант 🧑‍💼",
-                  callback_data: "support",
-                },
-              ],
-              [
-                {
-                  text: "О нас ℹ️",
-                  callback_data: "about_us",
-                },
-              ],
+              [{ text: "Мой гараж 🚘", callback_data: "my_garage" }],
+              [{ text: "Сделать полис 📃", callback_data: "create_polis" }],
+              [{ text: "Консультант 🧑‍💼", callback_data: "support" }],
+              [{ text: "О нас ℹ️", callback_data: "about_us" }],
             ],
           },
         });

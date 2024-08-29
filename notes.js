@@ -4,6 +4,7 @@ const { MongoClient, ObjectId } = require("mongodb");
 
 const TOKEN = process.env.TOKEN;
 const url = process.env.MONGODB_URL;
+const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
 
 const bot = new Telegraf(TOKEN);
 const client = new MongoClient(url);
@@ -11,8 +12,6 @@ const client = new MongoClient(url);
 const priceList = [
   { duration: "1 месяц", cost: 140, callback_data: "buy_policy_1_month" },
   { duration: "3 месяца", cost: 390, callback_data: "buy_policy_3_months" },
-  { duration: "6 месяцев", cost: 780, callback_data: "buy_policy_6_months" },
-  { duration: "12 месяцев", cost: 1560, callback_data: "buy_policy_12_months" },
 ];
 
 let canAnswer = false;
@@ -51,7 +50,7 @@ client
 
       if (user) {
         ctx.reply(
-          `Имя пользователя: ${user.username}\nID пользователя: ${user.id}\nБаланс: ${user.balance} PLN`,
+          `Мой гараж 🚘 \nИмя пользователя: ${user.username}\nID пользователя: ${user.id}\nБаланс: ${user.balance} PLN`,
           {
             reply_markup: {
               inline_keyboard: [
@@ -64,7 +63,7 @@ client
 
         const cars = await carsCollection.find({ user_id: userId }).toArray();
         cars.forEach((car) => {
-          ctx.reply(`${car.car_info}`, {
+          ctx.reply(`🚙 ${car.car_info}`, {
             reply_markup: {
               inline_keyboard: [
                 [
@@ -135,7 +134,22 @@ client
 
     function aboutUs(ctx) {
       ctx.reply(
-        "Мы - самый удобный бот для покупки страхового полиса для вашего любимого автомобиля"
+        `Мы предоставляем удобные и гибкие решения для краткосрочного страхования автомобилей. Наша цель - сделать процесс страхования быстрым и простым, чтобы вы могли без лишних хлопот защитить себя и свой автомобиль на нужный вам срок. Наши преимущества:
+
+- Гибкие сроки: выберите период страхования от 1 до 3 месяцев.
+- Быстрое оформление: получите полис в несколько шагов через нашего бота.
+- Прозрачные условия: никаких скрытых платежей и неожиданностей.
+- Поддержка 24/7: наши специалисты всегда готовы помочь вам.
+
+Оформите краткосрочное страхование прямо сейчас и будьте уверены в своей безопасности на дороге!`,
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "Сделать полис 📃", callback_data: "create_polis" }],
+              [{ text: "Добавить автомобиль 🚙", callback_data: "add_car" }],
+            ],
+          },
+        }
       );
       canAnswer = true;
     }
@@ -189,11 +203,31 @@ client
       const userId = ctx.from.id;
 
       if (data === "add_car") {
-        ctx.reply("Пожалуйста, отправьте информацию о вашем автомобиле.");
+        ctx.reply(
+          "Пожалуйста, введите марку, модель и регистрационный номер автомобиля в формате: \nBMW 318i ABC12345"
+        );
         userStates.set(userId, "waiting_for_car_info");
       } else if (data === "add_balance") {
-        ctx.reply("Пожалуйста, введите сумму для пополнения баланса.");
-        userStates.set(userId, "waiting_for_balance_amount");
+        ctx.reply("Выберите способ оплаты", {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "Blik на номер 📱", callback_data: "blik_phone" }],
+              [
+                {
+                  text: "Быстрый банковкий перевод 🏦",
+                  callback_data: "bank_iban",
+                },
+              ],
+            ],
+          },
+        });
+      } else if (data === "blik_phone") {
+        ctx.reply(
+          `Пожалуйста, сделайте перевод на номер +48777777777 в титуле перевода укажите свой 🆔: ${ctx.chat.id} \n\nЗатем отправьте PDF файл или скрин шот подтверждение платежа. `
+        );
+      } else if (data === "bank_iban") {
+        ctx.reply(`Пожалуйста, сделайте быстрый перевод на данный номер счета PLiban.
+В титуле перевода укажите свой 🆔: ${ctx.chat.id} \n\nВажно  🚨 во избежания долгого зачисления баланса на счет обязательно убедитесь что делаете быстрый перевод и отправьте PDF файл или скрин шот подтверждение платежа.`);
       } else if (data.startsWith("select_car_")) {
         const carId = data.split("_")[2];
         userStates.set(userId, `waiting_for_policy_duration_${carId}`);
@@ -212,7 +246,7 @@ client
         });
       } else if (data.startsWith("buy_policy_")) {
         const parts = data.split("_");
-        const duration = `${parts[2]}_${parts[3]}`; // Скорректировано для захвата полного срока
+        const duration = `${parts[2]}_${parts[3]}`;
         const carId = parts[4];
         const selectedPrice = priceList.find(
           (price) => price.callback_data === `buy_policy_${duration}`
@@ -306,11 +340,11 @@ client
               new Date(policy.date_of_expiration)
             );
             ctx.reply(
-              `Статус: ${status}\nДата начала действия: ${startDate}\nДата истечения срока действия: ${expirationDate}`
+              `🚙 ${car.car_info} \nСтатус: ${status}\nДата начала действия: ${startDate}\nДата истечения: ${expirationDate}`
             );
           });
         } else {
-          ctx.reply("Полисы для данного автомобиля отсутствуют.");
+          ctx.reply(`Полисы для автомобиля ${car.car_info} отсутствуют.`);
         }
       }
 
@@ -329,20 +363,15 @@ client
           car_info: carInfo,
           policies: [],
         });
-        ctx.reply(`Автомобиль ${carInfo} добавлен в ваш гараж.`);
+        ctx.reply(`Автомобиль ${carInfo} добавлен в ваш гараж.`, {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "Сделать полис 📃", callback_data: "create_polis" }],
+              [{ text: "Добавить еще один 🚙", callback_data: "add_car" }],
+            ],
+          },
+        });
         userStates.delete(userId);
-      } else if (state === "waiting_for_balance_amount") {
-        const amount = parseInt(ctx.message.text, 10);
-        if (isNaN(amount)) {
-          ctx.reply("Пожалуйста, введите корректную сумму без грош.");
-        } else {
-          await usersCollection.updateOne(
-            { id: userId },
-            { $inc: { balance: amount } }
-          );
-          ctx.reply(`Ваш баланс пополнен на ${amount} PLN.`);
-          userStates.delete(userId);
-        }
       } else if (ctx.text.trim() && canAnswer) {
         ctx.reply("Пожалуйста выберите действие из списка:", {
           reply_markup: {
@@ -358,6 +387,81 @@ client
         start(ctx);
       }
     });
+
+    const userPhotoMap = new Map(); // Карта для хранения соответствий fileId и userId
+
+    bot.on("photo", async (ctx) => {
+      const userId = ctx.from.id;
+      const photo = ctx.message.photo.pop(); // Получает последнюю (обычно наибольшего разрешения) фотографию
+      const fileId = photo.file_id;
+
+      // Сохраняем соответствие fileId и userId
+      userPhotoMap.set(fileId, userId);
+
+      // Отправляем фотографию в канал
+      await ctx.telegram.sendPhoto(ADMIN_CHAT_ID, fileId, {
+        caption: `Фотография от пользователя @${ctx.from.username} (ID: ${userId})`,
+      });
+
+      // Отправляем сообщение пользователю
+      ctx.reply("Спасибо за отправленную фотографию!");
+    });
+
+    bot.on("message", async (ctx) => {
+      const chatId = ctx.chat.id;
+
+      // Проверяем, что сообщение пришло из нашего канала и оно ответ на сообщение с фото
+      if (chatId.toString() === ADMIN_CHAT_ID && ctx.message.reply_to_message) {
+        const replyToMessage = ctx.message.reply_to_message;
+        const messageText = ctx.message.text;
+
+        // Проверяем, что ответили на фото
+        if (replyToMessage.photo) {
+          const photo = replyToMessage.photo.pop(); // Получаем фото, на которое ответили
+          const fileId = photo.file_id;
+
+          // Получаем userId, соответствующий этому fileId
+          const userId = userPhotoMap.get(fileId);
+
+          if (userId) {
+            // Отправляем сообщение пользователю
+            await bot.telegram.sendMessage(
+              userId,
+              `Ответ от админа: ${messageText}`
+            );
+          } else {
+            ctx.reply("Не удалось найти пользователя для этого файла.");
+          }
+        }
+      }
+    });
+
+    bot.on("document", async (ctx) => {
+      const document = ctx.message.document;
+
+      // Пересылаем документ администратору
+      await ctx.telegram.sendDocument(
+        ADMIN_CHAT_ID,
+        document.file_id,
+        {},
+        {
+          caption: `Документ от пользователя ${ctx.from.username} (${ctx.from.id})`,
+        }
+      );
+
+      // Отправляем сообщение пользователю с благодарностью
+      ctx.reply("Спасибо за ваш документ!");
+    });
+
+    // Обработка события нового поста в канале
+    // bot.on("channel_post", (ctx) => {
+    //   // Здесь можно обрабатывать пост
+    //   const post = ctx.channelPost;
+    //   console.log(`Новое сообщение в канале: ${post.text}`);
+
+    //   // Например, отправка сообщения в ответ на новый пост
+    //   ctx.reply("Пост получен!");
+    // });
 
     bot.launch();
   })

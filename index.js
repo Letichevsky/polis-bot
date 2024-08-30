@@ -311,12 +311,12 @@ client
             _id: ObjectId.createFromHexString(carId),
           });
 
-          ctx.reply("Запрос принят, ожидайте свой полис.");
           ctx.reply(
-            `Admin \nПользователь @${user.username} заказал полис. \nАвтомобиль: ${car.car_info} \ncar ID: ${carId} \nСрок полиса в месяцах: ${duration}`
+            "Запрос принят, вы получите уведомление как только полис будет готов."
           );
-          console.log(
-            `Пользователь ${user.username} ID:${userId} заказал полис. \nАвтомобиль: ${car.car_info} \ncar ID: ${carId} \nСрок полиса в месяцах: ${duration}`
+          bot.telegram.sendMessage(
+            ADMIN_CHAT_ID,
+            `Пользователь @${user.username} заказал полис. \nАвтомобиль: ${car.car_info} \ncar ID: ${carId} \nСрок полиса в месяцах: ${duration}`
           );
         } else {
           ctx.reply(
@@ -422,56 +422,18 @@ client
 
       // Отправляем фотографию в канал
       await ctx.telegram.sendPhoto(ADMIN_CHAT_ID, fileId, {
-        caption: `Фотография от пользователя @${ctx.from.username} (ID: ${userId})`,
+        caption: `Фотография от пользователя @${ctx.from.username} 🆔: ${userId}`,
       });
-
-      // Отправляем сообщение пользователю
       ctx.reply("Спасибо за отправленную фотографию!");
-    });
-
-    bot.on("message", async (ctx) => {
-      const chatId = ctx.chat.id;
-
-      // Проверяем, что сообщение пришло из нашего канала и оно ответ на сообщение с фото
-      if (chatId.toString() === ADMIN_CHAT_ID && ctx.message.reply_to_message) {
-        const replyToMessage = ctx.message.reply_to_message;
-        const messageText = ctx.message.text;
-
-        // Проверяем, что ответили на фото
-        if (replyToMessage.photo) {
-          const photo = replyToMessage.photo.pop(); // Получаем фото, на которое ответили
-          const fileId = photo.file_id;
-
-          // Получаем userId, соответствующий этому fileId
-          const userId = userPhotoMap.get(fileId);
-
-          if (userId) {
-            // Отправляем сообщение пользователю
-            await bot.telegram.sendMessage(
-              userId,
-              `Ответ от админа: ${messageText}`
-            );
-          } else {
-            ctx.reply("Не удалось найти пользователя для этого файла.");
-          }
-        }
-      }
     });
 
     bot.on("document", async (ctx) => {
       const document = ctx.message.document;
 
       // Пересылаем документ администратору
-      await ctx.telegram.sendDocument(
-        ADMIN_CHAT_ID,
-        document.file_id,
-        {},
-        {
-          caption: `Документ от пользователя ${ctx.from.username} (${ctx.from.id})`,
-        }
-      );
-
-      // Отправляем сообщение пользователю с благодарностью
+      await ctx.telegram.sendDocument(ADMIN_CHAT_ID, document.file_id, {
+        caption: `Документ от пользователя @${ctx.from.username} 🆔: ${ctx.from.id}`,
+      });
       ctx.reply("Спасибо за ваш документ!");
     });
 
